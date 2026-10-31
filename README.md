@@ -106,6 +106,8 @@ mvn -f z-watermark-starter/pom.xml test    # 3 例
 mvn -f z-watermark-web/pom.xml test        # 15 例
 ```
 
+> **CI**：push / PR 自动跑 GitHub Actions（`.github/workflows/ci.yml`：JDK 17 + `mvn -B -ntp verify`）。
+
 **core 31 例**（原 17 + 溯源 14）：显式水印首尾插入 / 提取 / 幂等 / 无水印返回 null、
 盲水印往返 / 词序不变 / 容量不足不嵌入 / 无水印返回 null、
 图片隐写往返 / 视觉差异 ≤ 1（平均像素差）/ 无水印返回 null / 非图片原样返回、
