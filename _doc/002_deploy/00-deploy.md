@@ -2,7 +2,7 @@
 
 ## 1. 运行形态
 
-`z-watermark-core` 是纯 Java 库（三种水印实现），编排层（z-biz-security）按坐标直接依赖并在自己进程内调用，
+`z-watermark-core` 是纯 Java 库（三种水印实现），编排层（z-security）按坐标直接依赖并在自己进程内调用，
 **不必起网络服务**。`z-watermark-web` 提供独立 REST 面（`ZWatermarkWebApplication`）：
 
 | 项 | 值 |
@@ -42,7 +42,7 @@ z.base.db.watermark.password=
 ## 3. 建表
 
 **本仓无 DDL**：水印是无状态的「打 + 验」变换，不落库。安全线真正要建表的是
-z-audit（哈希链台账 + 锚点）与 z-biz-security（策略台账），两者的 `init.sql` 在各自仓的
+z-audit（哈希链台账 + 锚点）与 z-security（策略台账），两者的 `init.sql` 在各自仓的
 `_doc/002_deploy/`，属**人工执行动作**——清单见
 [`_doc/005_testing/001_验收复跑.md`](_doc/005_testing/001_验收复跑.md) §4。
 
