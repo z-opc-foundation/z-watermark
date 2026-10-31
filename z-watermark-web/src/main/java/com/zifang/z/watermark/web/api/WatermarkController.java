@@ -5,6 +5,8 @@ import com.zifang.z.watermark.core.domain.WatermarkType;
 import com.zifang.z.watermark.core.service.WatermarkService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,10 +42,18 @@ public class WatermarkController {
     }
 
     /**
-     * 打水印并立即验回（自检）。
+     * ★ 打水印 + 写溯源台账 + 立即验回（**闭环主入口**，M2 #22）。
+     *
+     * <p><b>追踪码单一来源</b>：调用方不给追踪码 ⇒ 本域补一个**短码**并回写载荷；
+     * 响应里的 {@code traceId} 就是水印里那个码 ⇒ 拿它去反查台账必然对得上。
+     *
+     * <p><b>⚠️ 台账没写成时 HTTP 仍是 200</b>：打水印成功了，
+     * 但溯源留痕失败 ⇒ 响应里 {@code traceRecorded=false} + {@code traceError} 说明原因。
+     * 不改成 5xx 是因为「水印是主链路、台账是辅链路」——
+     * 但**不能静默**（合规缺口必须能被调用方看见）。
      *
      * @param request 请求体
-     * @return 带水印内容 + 自检结果
+     * @return 带水印内容 + 自检结果 + 溯源状态
      */
     @PostMapping("/embed")
     public ResponseEntity<Map<String, Object>> embed(@RequestBody WatermarkRequest request) {
@@ -60,15 +70,47 @@ public class WatermarkController {
                 request.getTraceId(),
                 request.getTimestamp() == null ? System.currentTimeMillis() : request.getTimestamp());
 
-        WatermarkService.WatermarkVerifyResult r =
-                service.embedAndVerify(type, request.getContent(), payload);
+        // ★ 用 embedTraced（不是 embedAndVerify）：打完水印顺手把溯源台账写出去。
+        WatermarkService.TracedWatermarkResult r =
+                service.embedTraced(type, request.getContent(), payload);
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("ok", true);
         body.put("type", type.name());
         body.put("verified", r.isVerified());
         body.put("content", r.getWatermarked());
-        body.put("extracted", r.getExtracted() == null ? null : r.getExtracted().toPayloadString());
+        body.put("traceId", r.getTraceId());
+        body.put("traceIdGenerated", r.isTraceIdGenerated());
+        body.put("traceRecorded", r.isTraceRecorded());
+        body.put("traceError", r.getTraceError());
+        body.put("extracted", r.getPayload() == null ? null : r.getPayload().toPayloadString());
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * ★ 按追踪码反查溯源台账（**三态**：200 查到 / 404 台账没有 / 503 台账不可用）。
+     *
+     * <p>用法：拿到泄密内容 ⇒ 提取盲水印里的追踪码 ⇒ 调本端点 ⇒ 还原完整上下文。
+     *
+     * @param traceId 追踪码
+     * @return 反查结果
+     */
+    @GetMapping("/trace/{traceId}")
+    public ResponseEntity<Map<String, Object>> trace(@PathVariable String traceId) {
+        WatermarkService service = watermarkServiceProvider.getIfAvailable();
+        if (service == null) {
+            return ResponseEntity.status(503).body(error("水印服务未装配"));
+        }
+        WatermarkService.TraceLookupResult result = service.trace(traceId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("ok", !result.isUnavailable());
+        body.putAll(result.toView());
+        if (result.isUnavailable()) {
+            return ResponseEntity.status(503).body(body);
+        }
+        if (!result.isFound()) {
+            return ResponseEntity.status(404).body(body);
+        }
         return ResponseEntity.ok(body);
     }
 

@@ -9,6 +9,14 @@ server:
   port: ${Z_WATERMARK_SERVER_PORT:8096}
 
 z:
+  watermark:
+    # ★ M2 #22：审计域基址（溯源闭环的落台账 / 反查出口）。
+    #   留空 ⇒ 本域不挂溯源出口 ⇒ 打水印照常，但没有溯源台账
+    #   （响应里 traceRecorded=false 会明确标出这个缺口）。
+    #
+    # ⚠️ **z-audit 是 z_audit_event 表的唯一权威写者**（哈希链要求单写者）——
+    #    本域**不自己写那张表**，一律交给 z-audit 写。
+    audit-base-url: ${Z_WATERMARK_AUDIT_BASE_URL:http://127.0.0.1:8097}
   base:
     db:
       watermark:
