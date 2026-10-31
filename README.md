@@ -102,3 +102,14 @@ mvn -f z-watermark-core/pom.xml test
 | **1 bit/像素时头长换算错** | extract 读载荷本体起点写 `start + HEADER_BITS / 8`（4 像素），实际头占 **32 像素** | 改 `start + HEADER_BITS`（1 bit/像素 ⇒ 头长 = 头比特数） |
 | **`String.split` 丢弃捕获组** | `"( +)".split("a b c", -1)` ⇒ `[a, b, c]`，空格没了 ⇒ 拿不到空格数就解不出比特 | 改 `Matcher.find()` 手工切分，保留间隔 |
 | **盲水印容量不足** | 完整载荷 464 bit vs 段落 33 间隔 ⇒ embed 正确地「不嵌入」，但 extract 得 null ⇒ 往返失败 | 改紧凑载荷（只带 traceId） |
+
+## 文档目录
+
+本项目文档统一收口在 `_doc/` 下（lead 002 规范八类固定编号表，桶按需存在）:
+
+- [`_doc/001_arch/`](_doc/001_arch/) — 架构与不变式：
+  - [`00-overview.md`](_doc/001_arch/00-overview.md) — 总体设计（三种技术不可互换对照、`Watermarker` SPI 扩展位、PNG/LSB/容量等八条不变式、已知边界）。
+- [`_doc/002_deploy/`](_doc/002_deploy/) — 部署与运行：
+  - [`00-deploy.md`](_doc/002_deploy/00-deploy.md) — 端口 8096、`Z_WATERMARK_*` 环境变量、`z.base.db.watermark.*` 键名模式、建表口径（本仓无 DDL）、构建验证与运行期注意。
+- [`_doc/005_testing/`](_doc/005_testing/) — 验收复跑：
+  - [`001_验收复跑.md`](_doc/005_testing/001_验收复跑.md) — 五仓复跑命令、实测读数、已知边界与生产执行清单。
