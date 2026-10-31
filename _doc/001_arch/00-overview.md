@@ -21,15 +21,22 @@ z-watermark/
 ├── z-watermark-core/             纯 Java，不依赖 Spring，可脱离数据库单测
 │   ├── domain/    WatermarkPayload（op/tenant/biz/trace/ts）· WatermarkType
 │   ├── spi/       Watermarker（embed / extract / type 三件套）
+│   │              WatermarkTraceRecorder · WatermarkTraceQuery（溯源 SPI）
 │   └── service/   WatermarkService（门面 + 类型路由）· VisibleTextWatermarker
 │                  · ImageStegoWatermarker · BlindTextWatermarker
-└── z-watermark-web/              运行壳：数据源 + AutoConfiguration + REST
-    ├── config/    WatermarkAutoConfiguration · WatermarkModuleDataSource · WatermarkHealthIndicator
+├── z-watermark-starter/          引擎装配（仅此一处，无 web/健康检查/数据源）
+│   └── config/    WatermarkStarterAutoConfiguration（ObjectProvider 惰性接溯源 SPI）
+└── z-watermark-web/              管控面部署：依赖 starter，只管部署关切
+    ├── client/    AuditTraceHttpClient（实现两个溯源 SPI）
+    ├── config/    WatermarkAutoConfiguration（SPI bean + 数据源 + 健康检查）
+    │              · WatermarkModuleDataSource · WatermarkHealthIndicator
     └── api/       WatermarkController（/z-team/api/watermark/embed|extract）· WatermarkHealthController
 ```
 
 结构约束：**新增一种水印技术 = 实现 `Watermarker` 并注册进 `WatermarkService` 的 EnumMap**，
-不改门面、不改调用方；core 不依赖同族任何仓。
+不改门面、不改调用方；core 不依赖同族任何仓；
+**引擎装配只有一处**（starter），web 不重复定义 `WatermarkService`；
+溯源后端形态是部署事实，由宿主提供 SPI bean，starter 自动接线，不焊进引擎。
 
 ## 3. 三种技术不可互换
 

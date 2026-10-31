@@ -57,6 +57,8 @@
 
     <modules>
         <module>z-watermark-core</module>
+        <!-- starter = 引擎装配（宿主嵌入用，无 web / 健康检查 / 数据源包袱）；web = 管控面部署。 -->
+        <module>z-watermark-starter</module>
         <module>z-watermark-web</module>
     </modules>
 

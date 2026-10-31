@@ -16,7 +16,7 @@
 | parent | `io.github.yuku123:z-boot-parent:1.2.0`（Java 17 / Spring Boot 3.3.13 火车） |
 | 包名 | `com.zifang.z.watermark.core.*` |
 | 端口 | 8096 |
-| 模块 | `z-watermark-core` · `z-watermark-web` |
+| 模块 | `z-watermark-core` · `z-watermark-starter` · `z-watermark-web` |
 
 ## 🎯 能力清单
 
@@ -82,19 +82,28 @@ z-watermark/
 │       ├── support/   WatermarkTraceIds（13 字符短追踪码）
 │       └── service/   WatermarkService（门面，含 embedTraced / trace）
 │                      · VisibleTextWatermarker · ImageStegoWatermarker · BlindTextWatermarker
+├── z-watermark-starter/
+│   └── src/main/java/com/zifang/z/watermark/starter/config/
+│       └── WatermarkStarterAutoConfiguration   引擎装配（仅此一处）：ObjectProvider 惰性接溯源 SPI
 └── z-watermark-web/
     └── src/main/java/com/zifang/z/watermark/web/
-        ├── client/    AuditTraceHttpClient（跨域落台账 + 反查）
-        ├── config/    WatermarkAutoConfiguration · WatermarkModuleDataSource · WatermarkHealthIndicator
+        ├── client/    AuditTraceHttpClient（跨域落台账 + 反查，实现两个溯源 SPI）
+        ├── config/    WatermarkAutoConfiguration（只管部署关切：SPI bean + 数据源 + 健康检查）
+        │              · WatermarkModuleDataSource · WatermarkHealthIndicator
         └── api/       WatermarkController · WatermarkHealthController
 ```
+
+> **引擎装配只有一处**：`WatermarkService` 由 starter 装配（`AutoConfiguration.imports`），
+> web 依赖 starter、不重复定义；溯源后端是 HTTP 还是别的，由宿主提供 SPI bean，
+> starter 用 `ObjectProvider` 自动接上——部署事实不焊进引擎。
 
 ## 🧪 测试
 
 ```bash
 export JAVA_HOME=/Users/zifang/Library/Java/JavaVirtualMachines/corretto-17.0.19/Contents/Home
-mvn -f z-watermark-core/pom.xml test    # 31 例
-mvn -f z-watermark-web/pom.xml test     # 15 例
+mvn -f z-watermark-core/pom.xml test       # 31 例
+mvn -f z-watermark-starter/pom.xml test    # 3 例
+mvn -f z-watermark-web/pom.xml test        # 15 例
 ```
 
 **core 31 例**（原 17 + 溯源 14）：显式水印首尾插入 / 提取 / 幂等 / 无水印返回 null、
@@ -106,6 +115,11 @@ mvn -f z-watermark-web/pom.xml test     # 15 例
 出口抛异常不外抛、未配置出口标缺口、**盲水印往返后提取的码能反查到同一条**、
 notFound ≠ unavailable、unavailable 独立可判、无查询出口 ⇒ unavailable、
 空追踪码 ⇒ notFound、`WM:<traceId>` 幂等键。
+
+**starter 3 例**（嵌入式装配，宿主模拟应用放 `com.example.*` 无关包树 ⇒ 组件扫描不可能兜底）：
+纯宿主（无 SPI）只靠 `AutoConfiguration.imports` 装出引擎且真能打/取（往返一致）、
+宿主自供溯源 SPI ⇒ 引擎自动接上并调用（不用改 starter、不用手工 set）、
+**imports 完整性逐行 `Class.forName` 纯机械校验**（正向用例抓不住包名笔误——Spring 侧有容错，这个才判得红）。
 
 **web 15 例**（原 6 + 降级 4 + 契约 5）：端点路由 + 自检；
 **降级 4 例**（`WatermarkTraceE2ETest`，审计域基址指向没人监听的端口）：

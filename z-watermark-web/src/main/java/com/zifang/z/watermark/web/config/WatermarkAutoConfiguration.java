@@ -1,29 +1,32 @@
 package com.zifang.z.watermark.web.config;
 
-import com.zifang.z.watermark.core.service.WatermarkService;
 import com.zifang.z.watermark.web.client.AuditTraceHttpClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
 /**
- * z-watermark自动装配。
+ * z-watermark <b>管控面（web）自动装配</b>。
  *
- * <p>宿主引用本仓时，只要把 {@code z-watermark-web} 放进 classpath，
- * {@code META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports}
- * 会把本装配挂上 ⇒ 数据源 + 领域服务齐备。
+ * <p><b>只管部署关切</b>：本域数据源 + 健康检查 + **溯源 SPI 的 HTTP 实现**。
+ * <b>引擎装配已拆到 {@code z-watermark-starter}</b>（M2 #23）——
+ * {@link com.zifang.z.watermark.core.service.WatermarkService} 由
+ * {@code com.zifang.z.watermark.starter.config.WatermarkStarterAutoConfiguration} 提供，
+ * 本类不再重复定义。
  *
- * <p>⚠️ 本装配**不扫描**包树（无 {@code @ComponentScan}）—— 跨域交互按组织口径走 HTTP 边界，
- * 不把别人的 jar 拖进本仓上下文。
+ * <p><b>★ 溯源闭环的接线方式（M2 #23 改）</b>：早先本类自己 {@code new WatermarkService()}
+ * 再 {@code setTraceRecorder(...)}。拆分后本类<b>只提供 SPI bean</b>（{@link AuditTraceHttpClient}
+ * 同时实现写入与查询两个 SPI），starter 的装配会**自动把它接进引擎**。
+ * ⇒ 引擎装配只有一处，本类不碰引擎实例；两侧也不依赖 bean 注册顺序（starter 用
+ * {@code ObjectProvider} 惰性取）。
  *
- * <p><b>★ M2 #22：溯源闭环装配</b>：
+ * <p><b>★ M2 #22：溯源闭环口径</b>：
  * <ul>
  *   <li>配置 {@code z.watermark.audit-base-url}（如 {@code http://127.0.0.1:8097}）
- *       ⇒ 本域挂上审计域的 HTTP 客户端 ⇒ 打水印时把溯源记录交给 z-audit 落台账，
- *       并支持按追踪码反查；</li>
+ *       ⇒ 挂上审计域 HTTP 客户端 ⇒ 打水印时把溯源记录交给 z-audit 落台账，并支持按追踪码反查；</li>
  *   <li>不配置 ⇒ **不挂** ⇒ 打水印照常工作，但**没有溯源台账**
  *       （响应里 {@code traceRecorded=false} 会明确标出这个缺口）。</li>
  * </ul>
@@ -32,6 +35,8 @@ import org.springframework.context.annotation.Import;
  * 多个写者各持自己的链尾 ⇒ 链分叉 ⇒ 链校验必然报断。
  * z-audit 服务是该表的唯一权威写者。
  *
+ * <p>⚠️ 本装配**不扫描**包树（无 {@code @ComponentScan}）—— 跨域交互按组织口径走 HTTP 边界。
+ *
  * @author zifang
  */
 @AutoConfiguration
@@ -39,31 +44,21 @@ import org.springframework.context.annotation.Import;
 public class WatermarkAutoConfiguration {
 
     /**
-     * 审计域基址（**可空** ⇒ 不挂溯源出口）。
+     * 溯源台账 HTTP 客户端（**同时是写入与查询两个 SPI 的实现**）。
      *
-     * @return 基址
-     */
-    @Value("${z.watermark.audit-base-url:}")
-    private String auditBaseUrl;
-
-    /**
-     * 水印服务（**三种内置实现** + 溯源闭环）。
+     * <p>{@code @ConditionalOnProperty} 要求 {@code z.watermark.audit-base-url} **非空** ——
+     * 用 SpEL 而不是 {@code @ConditionalOnProperty} 的默认匹配：后者把「键存在但值为空串」
+     * 也当成命中（空串不是 false），会让空配置也去建一个基址为空的客户端。
      *
-     * <p>{@code @ConditionalOnMissingBean} ⇒ 宿主自己装配了同类型 bean 时本仓让位
-     * （比如宿主想加自定义水印算法）。
-     *
-     * @return 水印服务
+     * @param baseUrl 审计域基址
+     * @return 溯源 SPI 实现（starter 会自动接进引擎）
      */
     @Bean
     @ConditionalOnMissingBean
-    public WatermarkService watermarkService() {
-        WatermarkService service = new WatermarkService();
-        if (auditBaseUrl != null && !auditBaseUrl.trim().isEmpty()) {
-            AuditTraceHttpClient client = new AuditTraceHttpClient(auditBaseUrl.trim());
-            service.setTraceRecorder(client);
-            service.setTraceQuery(client);
-        }
-        return service;
+    @ConditionalOnExpression("'${z.watermark.audit-base-url:}' != ''")
+    public AuditTraceHttpClient auditTraceHttpClient(
+            @Value("${z.watermark.audit-base-url:}") String baseUrl) {
+        return new AuditTraceHttpClient(baseUrl.trim());
     }
 
     /**
