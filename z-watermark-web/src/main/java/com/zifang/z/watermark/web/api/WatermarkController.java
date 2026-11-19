@@ -1,5 +1,8 @@
 package com.zifang.z.watermark.web.api;
 
+import com.zifang.z.meta.api.annotation.BizApi;
+import com.zifang.z.meta.api.annotation.BizField;
+import com.zifang.z.meta.api.annotation.BizParam;
 import com.zifang.z.watermark.core.domain.WatermarkPayload;
 import com.zifang.z.watermark.core.domain.WatermarkType;
 import com.zifang.z.watermark.core.service.WatermarkService;
@@ -56,7 +59,8 @@ public class WatermarkController {
      * @return 带水印内容 + 自检结果 + 溯源状态
      */
     @PostMapping("/embed")
-    public ResponseEntity<Map<String, Object>> embed(@RequestBody WatermarkRequest request) {
+    @BizApi(summary = "★ 打水印 + 写溯源台账 + 立即验回（闭环主入口，M2 #22）", description = "★ 打水印 + 写溯源台账 + 立即验回（闭环主入口，M2 #22）。 追踪码单一来源 ：调用方不给追踪码 ⇒ 本域补一个短码并回写载荷； 响应里的 traceId 就是水印里那个码 ⇒ 拿它去反查台账必然对得上。 ⚠️ 台账没写成时 HTTP 仍是 200 ：打水印成功了， 但溯源留痕失败 ⇒ 响应里 traceRecorded=false + traceError 说明原因。 不改成 5xx 是因为「水印是主链路、台账是辅链路」—— 但不能静默（合规缺口必须能被调用方看见）。", tags = { "z-watermark" })
+    public ResponseEntity<Map<String, Object>> embed(@RequestBody @BizParam(name = "request", type = BizField.FieldType.STRING, description = "请求体", position = BizParam.Position.BODY) WatermarkRequest request) {
         WatermarkService service = watermarkServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.status(503).body(error("水印服务未装配"));
@@ -96,7 +100,8 @@ public class WatermarkController {
      * @return 反查结果
      */
     @GetMapping("/trace/{traceId}")
-    public ResponseEntity<Map<String, Object>> trace(@PathVariable String traceId) {
+    @BizApi(summary = "★ 按追踪码反查溯源台账（三态：200 查到 / 404 台账没有 / 503 台账不可用）", description = "★ 按追踪码反查溯源台账（三态：200 查到 / 404 台账没有 / 503 台账不可用）。 用法：拿到泄密内容 ⇒ 提取盲水印里的追踪码 ⇒ 调本端点 ⇒ 还原完整上下文。", tags = { "z-watermark" })
+    public ResponseEntity<Map<String, Object>> trace(@PathVariable @BizParam(name = "traceId", type = BizField.FieldType.STRING, description = "追踪码", position = BizParam.Position.PATH) String traceId) {
         WatermarkService service = watermarkServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.status(503).body(error("水印服务未装配"));
@@ -121,7 +126,8 @@ public class WatermarkController {
      * @return 提取结果
      */
     @PostMapping("/extract")
-    public ResponseEntity<Map<String, Object>> extract(@RequestBody WatermarkRequest request) {
+    @BizApi(summary = "提取水印载荷（反查）", description = "提取水印载荷（反查）。", tags = { "z-watermark" })
+    public ResponseEntity<Map<String, Object>> extract(@RequestBody @BizParam(name = "request", type = BizField.FieldType.STRING, description = "请求体", position = BizParam.Position.BODY) WatermarkRequest request) {
         WatermarkService service = watermarkServiceProvider.getIfAvailable();
         if (service == null) {
             return ResponseEntity.status(503).body(error("水印服务未装配"));
@@ -225,3 +231,6 @@ public class WatermarkController {
         }
     }
 }
+
+
+
