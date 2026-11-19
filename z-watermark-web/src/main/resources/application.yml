@@ -9,6 +9,11 @@ server:
   port: ${Z_WATERMARK_SERVER_PORT:8096}
 
 z:
+  # z-ext 预置埋点自登记控制台（运行期可被控制台切换扩展点实现）
+  ext:
+    console:
+      enabled: true
+      url: ${ZEXT_CONSOLE_URL:http://192.168.31.136:8888}
   watermark:
     # ★ M2 #22：审计域基址（溯源闭环的落台账 / 反查出口）。
     #   留空 ⇒ 本域不挂溯源出口 ⇒ 打水印照常，但没有溯源台账
